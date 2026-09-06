@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: cabinet-adeiz-site
-    env: node
+    name: atelier-gestion-projets-py
+    env: python
     plan: free
-    buildCommand: npm install
-    startCommand: npm start
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
     envVars:
       - key: SESSION_SECRET
         generateValue: true
@@ -13,6 +13,6 @@ services:
       - key: ADMIN_PASSWORD
         sync: false
     disk:
-      name: cabinet-adeiz-data
+      name: atelier-projets-py-data
       mountPath: /opt/render/project/src/data
       sizeGB: 1

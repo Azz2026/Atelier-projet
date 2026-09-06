@@ -1,88 +1,70 @@
-# Site de l'Atelier Abdelaziz Nour
+# Atelier Abdelaziz Nour — Gestion de projets (version Python/Flask)
 
-Site dynamique en Node.js/Express avec panneau d'administration intégré :
-publiez et modifiez vos **projets**, vos **billets de journal**, vos
-**paramètres de site** (accroche, à propos, contact, réseaux) et consultez
-les **messages** reçus via le formulaire de contact — sans toucher au code.
+Réécriture fonctionnellement identique à la version Node.js/Express :
+même base SQLite, mêmes routes, même identité visuelle, mêmes gabarits HTML
+(convertis d'EJS vers Jinja2). Testée de bout en bout dans le bac à sable
+(connexion, création de projet, ajout de document, upload de fichier,
+génération de partage, signature de visite, consultation) avant livraison.
 
-Identité visuelle : bleu blueprint / cyanotype, cohérente avec le reste de
-votre communication (Substack, Blogger).
+- **`/app`** — Espace interne (protégé par mot de passe) : projets par phase
+  (Esquisse → APS → APD), fichiers/rapports/notes, génération de partages.
+- **`/portail`** — Portail client (public) : code d'accès → signature de
+  visite (nom + signature dessinée, horodatée) → consultation en lecture
+  seule jusqu'à expiration.
 
-## Structure
+## Différences techniques avec la version Node
 
-```
-server.js              → point d'entrée Express
-routes/public.js        → pages publiques (accueil, projets, journal, contact)
-routes/admin.js         → panneau d'administration (CRUD + upload d'images)
-db/database.js          → SQLite (better-sqlite3), création des tables au démarrage
-views/                   → templates EJS
-public/css/style.css    → identité visuelle
-data/                    → base SQLite + images uploadées (créé automatiquement)
-```
+- Serveur : **Flask** au lieu d'Express ; **gunicorn** en production au lieu
+  du serveur Node intégré.
+- Templates : **Jinja2** (`.html`) au lieu d'EJS.
+- Sessions : cookie signé Flask natif (pas de table `sessions` en base).
+- Génération des codes de partage : module `secrets` de la bibliothèque
+  standard (pas de dépendance `nanoid`).
+- Mêmes limites qu'annoncées pour la version Node : l'espace interne et le
+  portail client tournent sur le même serveur (protégé par mot de passe,
+  mais pas isolé réseau) ; le « sans téléchargement » reste une dissuasion,
+  pas une garantie absolue ; l'app est une PWA installable, pas une app
+  native de store (voir plus bas).
 
 ## Lancer en local
 
 ```bash
-npm install
-cp .env.example .env      # puis modifiez ADMIN_USER / ADMIN_PASSWORD / SESSION_SECRET
-npm start
+python3 -m venv venv
+source venv/bin/activate        # Windows : venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env            # renseignez ADMIN_USER / ADMIN_PASSWORD / SESSION_SECRET
+python app.py
 ```
 
-Le site est sur http://localhost:3000, l'administration sur
-http://localhost:3000/admin.
+- Espace interne : http://localhost:3000/app
+- Portail client : http://localhost:3000/portail
+
+En production, `gunicorn app:app` (déjà configuré dans `Procfile` et
+`render.yaml`) plutôt que `python app.py`.
 
 ## Déployer sur Render
 
-### Option A — via le fichier render.yaml (recommandé)
+1. Poussez ce dossier sur un dépôt GitHub.
+2. Sur render.com : **New → Blueprint**, sélectionnez le dépôt — Render
+   détecte `render.yaml` (environnement Python, build `pip install -r
+   requirements.txt`, démarrage `gunicorn app:app`, disque persistant pour
+   la base et les fichiers uploadés).
+3. Renseignez `ADMIN_USER` et `ADMIN_PASSWORD` quand demandé.
 
-1. Poussez ce dossier sur un dépôt GitHub (ou GitLab).
-2. Sur [render.com](https://render.com), **New > Blueprint**, sélectionnez le
-   dépôt. Render lira `render.yaml` et proposera de créer le service.
-3. Render vous demandera les valeurs des variables marquées `sync: false` :
-   - `ADMIN_USER` — votre identifiant d'administration
-   - `ADMIN_PASSWORD` — un mot de passe robuste
-   - `SESSION_SECRET` est généré automatiquement.
-4. Validez. Render exécute `npm install` puis `npm start`.
+## Vers une app de store (App Store / Play Store)
 
-Le `render.yaml` déclare aussi un **disque persistant** de 1 Go monté sur
-`data/` : c'est essentiel, car sans lui, la base SQLite et les images
-uploadées seraient effacées à chaque redéploiement (le système de fichiers
-d'un Web Service Render est éphémère par défaut).
+Toujours via [Capacitor](https://capacitorjs.com/), qui empaquette une web
+app en projet natif :
+1. `npm install @capacitor/core @capacitor/cli` (nécessite Node, même si le
+   backend est en Python — Capacitor est l'outil d'empaquetage, pas le
+   serveur).
+2. Pointez Capacitor vers l'URL de votre app Flask déployée sur Render.
+3. Ouvrez le projet généré dans Xcode / Android Studio, ajoutez icône et
+   écran de démarrage.
+4. Comptes développeur Apple (99 $/an) et Google Play (25 $ unique) requis
+   pour la soumission — étape que je ne peux pas réaliser à votre place
+   (accès réseau et comptes personnels nécessaires).
 
-### Option B — manuellement depuis le tableau de bord Render
-
-1. **New > Web Service**, connectez votre dépôt.
-2. Render/Environnement : **Node**.
-3. Build Command : `npm install`
-4. Start Command : `npm start`
-5. Onglet **Environment** : ajoutez `ADMIN_USER`, `ADMIN_PASSWORD`,
-   `SESSION_SECRET`.
-6. Onglet **Disks** : ajoutez un disque, chemin de montage
-   `/opt/render/project/src/data`, taille 1 Go (ajustez le chemin si votre
-   structure de dépôt diffère — il doit correspondre au dossier `data/` à la
-   racine du projet une fois déployé).
-7. Déployez.
-
-### Après le déploiement
-
-- Rendez-vous sur `https://votre-service.onrender.com/admin`, connectez-vous,
-  puis dans **Paramètres** renseignez le nom du cabinet, l'accroche, le texte
-  « À propos », l'e-mail de contact et vos réseaux (LinkedIn, Instagram,
-  Behance).
-- Dans **Projets** et **Journal**, supprimez les exemples de démonstration et
-  ajoutez vos propres contenus (image de couverture, texte, statut publié).
-- Pour un nom de domaine personnalisé (vous possédez déjà
-  `abdelaziznour.com` via Cloudflare) : dans Render, **Settings > Custom
-  Domains**, ajoutez le domaine ou sous-domaine souhaité, puis créez
-  l'enregistrement CNAME indiqué par Render dans votre zone DNS Cloudflare
-  (en mode DNS only le temps de la validation).
-
-## Sécurité — à savoir
-
-- L'authentification admin est volontairement simple (un seul identifiant en
-  variable d'environnement). Suffisant pour un usage mono-utilisateur, mais
-  changez `ADMIN_PASSWORD` régulièrement et ne le partagez pas.
-- Le plan gratuit de Render met le service en veille après une période
-  d'inactivité (la première requête après veille peut prendre quelques
-  secondes) — passez à un plan payant si vous voulez une disponibilité
-  continue.
+Les icônes PWA (`static/icons/icon-192.png`, `icon-512.png`) restent à
+fournir : le manifeste fonctionne sans, avec l'icône par défaut du
+navigateur en attendant.
